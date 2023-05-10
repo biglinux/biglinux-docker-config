@@ -18,6 +18,7 @@ install=${pkgname}.install
 
 package() {
     mkdir -p "${pkgdir}/var/lib/docker"
+    groupadd docker
     usermod -aG docker $(whoami)
     systemctl enable --now docker.service
 }
