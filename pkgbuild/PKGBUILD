@@ -1,0 +1,24 @@
+# Maintainer: Tales A. Mendonça <talesam@gmail.com>
+
+pkgname=biglinux-docker-config
+pkgver=$(date +%y.%m.%d)
+pkgrel=$(date +%H%M)
+pkgdesc="Base docker configuration"
+arch=('any')
+url="https://github.com/biglinux/$pkgname"
+license=('GPL3')
+depends=('docker' 'docker-compose')
+provides=("$pkgname")
+conflicts=("$pkgname-git")
+backup=('etc/default/docker')
+options=('!strip' '!docs')
+source=("git+${url}.git")
+sha256sums=('SKIP')
+install=${pkgname}.install
+
+package() {
+    mkdir -p "${pkgdir}/var/lib/docker"
+    usermod -aG docker $(whoami)
+    systemctl enable --now docker.service
+}
+
