@@ -5,11 +5,17 @@ on:
 
   push:
     branches: [ "*" ]
+    paths-ignore:
+      - COPYING
+      - README.md
+      - LICENSE
+      - '.github/workflows/**'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v3
       - name: Send Hooks BigLinux Build Package
         shell: bash
         run: |
