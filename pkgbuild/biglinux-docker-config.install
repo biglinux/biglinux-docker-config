@@ -1,0 +1,19 @@
+post_install() {
+    if ! getent group docker > /dev/null; then
+        groupadd docker
+    fi
+    systemctl enable --now docker.service
+}
+
+post_upgrade() {
+    if ! getent group docker > /dev/null; then
+        groupadd docker
+    fi
+    systemctl enable --now docker.service
+}
+
+post_remove() {
+    if getent group docker > /dev/null; then
+        groupdel docker
+    fi
+}
