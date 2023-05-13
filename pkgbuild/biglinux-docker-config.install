@@ -2,18 +2,18 @@ post_install() {
     if ! getent group docker > /dev/null; then
         groupadd docker
     fi
+
     for user in $(awk -F':' '{ if ($3 >= 1000 && $1 != "nobody") print $1 }' /etc/passwd); do
         usermod -aG docker "$user"
         newgrp docker
     done
+
     systemctl enable --now docker.service
 
     # Update current user's groups
-    su -l $USER -c 'exec newgrp docker'
-}
-
-post_upgrade() {
-    post_install
+    if [ "$(id -gn)" != "docker" ]; then
+        exec sg docker newgrp "$(id -un)"
+    fi
 }
 
 post_remove() {
@@ -22,3 +22,7 @@ post_remove() {
         groupdel docker
     fi
 }
+
+
+
+
