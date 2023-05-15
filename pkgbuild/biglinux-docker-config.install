@@ -5,16 +5,14 @@ post_install() {
 
     for user in $(awk -F':' '{ if ($3 >= 1000 && $1 != "nobody") print $1 }' /etc/passwd); do
         usermod -aG docker "$user"
-        newgrp docker
     done
 
     systemctl enable --now docker.service
 
-    # Update current user's groups
-    if [ "$(id -gn)" != "docker" ]; then
-        exec sg docker newgrp "$(id -un)"
-    fi
+    # Update current user's groups in the current session
+    usermod -aG docker "$(id -un)"
 }
+
 
 post_remove() {
     systemctl disable docker.service
