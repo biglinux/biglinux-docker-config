@@ -1,3 +1,5 @@
+# File: biglinux-docker-config.install
+
 post_install() {
     if ! getent group docker > /dev/null; then
         groupadd docker
@@ -19,8 +21,7 @@ post_remove() {
     if getent group docker > /dev/null; then
         groupdel docker
     fi
+
+    # Remove Docker and Docker Compose packages
+    pacman -Rs --noconfirm docker docker-compose
 }
-
-
-
-
