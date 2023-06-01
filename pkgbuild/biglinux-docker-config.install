@@ -7,7 +7,11 @@ post_install() {
         usermod -aG docker "$user"
     done
 
-    systemctl enable --now docker.service
+    # Enable Docker to start on boot
+    systemctl enable docker
+
+    # Start Docker service
+    systemctl start docker
 
     # Update current user's groups in the current session
     usermod -aG docker "$(id -un)"
