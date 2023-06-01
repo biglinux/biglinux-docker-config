@@ -15,6 +15,9 @@ post_install() {
 
     # Update current user's groups in the current session
     usermod -aG docker "$(id -un)"
+    
+    #change permissions
+    chmod 666 /var/run/docker.sock
 }
 
 
