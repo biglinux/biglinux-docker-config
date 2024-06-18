@@ -27,7 +27,7 @@ post_install() {
 post_upgrade() {
     if [ "$(grep LimitNOFILE= /lib/systemd/system/containerd.service | cut -d "=" -f2)" = "infinity" ];then
         active=$(systemctl is-active containerd.service)
-        sed -i '/LimitNOFILE=/s/infinity/1048576/' /lib/systemd/system/containerd.service
+        sed -i '/LimitNOFILE=/s/infinity/1048576/' containerd.service
         systemctl daemon-reload
         if [ "$active" = "active" ];then
             systemctl restart containerd.service
