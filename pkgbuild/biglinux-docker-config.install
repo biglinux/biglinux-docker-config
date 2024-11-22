@@ -8,7 +8,7 @@ post_install() {
     done
 
     if [ "$(grep LimitNOFILE= /lib/systemd/system/containerd.service | cut -d "=" -f2)" = "infinity" ];then
-        sed -i '/LimitNOFILE=/s/infinity/1048576/' containerd.service
+        sed -i '/LimitNOFILE=/s/infinity/1048576/' /lib/systemd/system/containerd.service
     fi
 
     # Enable Docker to start on boot
@@ -38,6 +38,7 @@ post_upgrade() {
 post_remove() {
     if pacman -Qi docker &> /dev/null; then
         echo "Docker is installed. The docker.service will not be disabled."
+	exit 1
     else
         systemctl disable docker.service
     fi
