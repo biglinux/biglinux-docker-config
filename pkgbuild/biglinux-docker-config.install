@@ -1,49 +1,116 @@
+#!/usr/bin/env bash
+
+# Color definitions for status messages
+blueDark="\e[1;38;5;33m"     # Bold dark blue
+mediumBlue="\e[1;38;5;32m"   # Bold medium blue
+lightBlue="\e[1;38;5;39m"    # Bold light blue
+cyan="\e[1;38;5;45m"         # Bold cyan
+white="\e[1;97m"             # Bold white
+reset="\e[0m"                # Reset text formatting
+
+# Print status messages
+printMsg() {
+    local message=$1
+    echo -e "${blueDark}[${lightBlue}biglinux-docker-config${blueDark}]${reset} ${cyan}→${reset} ${white}${message}${reset}"
+}
+
+# Containerd drop-in installed by this package to cap the open files limit
+# without editing the package-owned unit (which would be lost on upgrade).
+containerdDropin="/etc/systemd/system/containerd.service.d/limits.conf"
+
+# Create the containerd drop-in (idempotent).
+configureContainerdLimit() {
+    if [ -f "$containerdDropin" ]; then
+        return 0
+    fi
+
+    printMsg "Configuring containerd open files limit..."
+    mkdir -p "$(dirname "$containerdDropin")"
+    cat > "$containerdDropin" <<'EOF'
+[Service]
+LimitNOFILE=1048576
+EOF
+    systemctl daemon-reload
+}
+
+# Give every currently logged-in real user immediate access to the running
+# docker socket, so Docker works in their current session without re-login.
+# This is just a bridge: future sessions and reboots get access through the
+# docker group configured above. A per-user ACL is used instead of a world
+# writable socket (chmod 666), which would grant any local user root access.
+grantRunningSessionAccess() {
+    command -v setfacl > /dev/null 2>&1 || return 0
+    [ -S /var/run/docker.sock ] || return 0
+
+    local uid name
+    for uid in $(loginctl list-users --no-legend 2>/dev/null | awk '$1 >= 1000 { print $1 }'); do
+        name=$(id -un "$uid" 2>/dev/null || echo "$uid")
+        printMsg "Granting ${name} immediate access to the docker socket..."
+        setfacl -m "u:${uid}:rw" /var/run/docker.sock 2>/dev/null
+    done
+}
+
 post_install() {
     if ! getent group docker > /dev/null; then
+        printMsg "Creating docker group..."
         groupadd docker
     fi
 
+    printMsg "Adding users to the docker group..."
     for user in $(awk -F':' '{ if ($3 >= 1000 && $1 != "nobody") print $1 }' /etc/passwd); do
         usermod -aG docker "$user"
     done
 
-    if [ "$(grep LimitNOFILE= /lib/systemd/system/containerd.service | cut -d "=" -f2)" = "infinity" ];then
-        sed -i '/LimitNOFILE=/s/infinity/1048576/' /lib/systemd/system/containerd.service
-    fi
+    configureContainerdLimit
 
     # Enable Docker to start on boot
+    printMsg "Enabling Docker service..."
     systemctl enable docker
 
     # Start Docker service
+    printMsg "Starting Docker service..."
     systemctl start docker
 
-    # Update current user's groups in the current session
-    usermod -aG docker "$(id -un)"
+    # Make Docker usable right now, without re-login
+    grantRunningSessionAccess
 
-    #change permissions
-    chmod 666 /var/run/docker.sock
+    printMsg "Docker is ready to use. New login sessions get access via the docker group."
 }
 
 post_upgrade() {
-    if [ "$(grep LimitNOFILE= /lib/systemd/system/containerd.service | cut -d "=" -f2)" = "infinity" ];then
-        active=$(systemctl is-active containerd.service)
-        sed -i '/LimitNOFILE=/s/infinity/1048576/' /lib/systemd/system/containerd.service
-        systemctl daemon-reload
-        if [ "$active" = "active" ];then
-            systemctl restart containerd.service
-        fi
-    fi
+    configureContainerdLimit
+
+    # Re-grant access in case the socket was just (re)created
+    grantRunningSessionAccess
+
+    printMsg "Docker upgrade completed successfully"
 }
 
 post_remove() {
+    # Remove the containerd drop-in installed by this package.
+    if [ -f "$containerdDropin" ]; then
+        printMsg "Removing containerd drop-in..."
+        rm -f "$containerdDropin"
+        rmdir --ignore-fail-on-non-empty "$(dirname "$containerdDropin")" 2>/dev/null
+        systemctl daemon-reload 2>/dev/null
+    fi
+
+    # This is only the configuration package: if the Docker engine is still
+    # installed, leave its service and group untouched.
     if pacman -Qi docker &> /dev/null; then
-        echo "Docker is installed. The docker.service will not be disabled."
-	exit 1
-    else
+        printMsg "Docker is still installed; leaving docker.service untouched."
+        return 0
+    fi
+
+    if systemctl is-enabled --quiet docker.service 2>/dev/null; then
+        printMsg "Disabling Docker service..."
         systemctl disable docker.service
     fi
 
     if getent group docker > /dev/null; then
+        printMsg "Removing docker group..."
         groupdel docker
     fi
+
+    printMsg "Docker removal completed successfully"
 }
